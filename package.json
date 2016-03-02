@@ -1,0 +1,25 @@
+{
+  "name": "alternator",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "debounce": "^1.0.0",
+    "tape": "^4.4.0"
+  },
+  "dependencies": {
+    "aws-sdk": "^2.2.39",
+    "generic-errors": "^2.0.1",
+    "merge": "^1.2.0",
+    "righto": "^0.4.1",
+    "shuv": "^1.0.1"
+  }
+}
