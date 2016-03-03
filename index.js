@@ -85,24 +85,27 @@ function get(tableContext, options, callback) {
     return result;
 }
 
-function create(tableContext, data, callback){
+function create(tableContext, options, callback){
     var table = tableContext.table;
-    var record = resolve(data);
 
-    var entity = righto(function(table, record, done){
+    var entity = righto(function(table, options, done){
+        var item = options.item;
+
         tableContext.context.docClient.put({
-            Item: record,
+            Item: item,
+            AttributeUpdates: options.attributeUpdates,
+            ConditionExpression: options.conditionExpression,
+            ExpressionAttributeValues: options.conditionValues,
+            ExpressionAttributeNames: options.conditionNames,
             TableName: table.name
-        }, done);
-    }, table, record);
+        }, function(error){
+            return done(error, !error && item);
+        });
+    }, table, getOptions(table, options));
 
-    var result = righto(function(record, done){
-        done(null, record);
-    }, record, [entity]);
+    callback && entity(callback);
 
-    callback && result(callback);
-
-    return result;
+    return entity;
 }
 
 function createAttributeValues(data){
@@ -115,40 +118,46 @@ function createAttributeValues(data){
     return result;
 }
 
-function createAttributeUpdates(data){
+function createAttributeNames(data){
     var result = {};
 
     for(var key in data){
-        result[key] = {
-            Value: data[key],
-            Action: 'PUT'
-        };
+        result['#' + key] = key;
     }
 
     return result;
+}
+
+function createUpdateExpression(data){
+    var result = [];
+
+    for(var key in data){
+        result.push('#' + key + ' = :' + key);
+    }
+
+    return 'SET ' + result.join(', ');
 }
 
 function update(tableContext, options, callback){
     var table = tableContext.table;
 
     function dbUpdate(table, options, done){
-        var data = options.data,
-            expression = options.expression,
-            attributeUpdates,
-            attributeValues;
+        var item = options.item,
+            attributeValues = options.attributeValues,
+            attributeNames = options.attributeNames,
+            expression = options.expression;
 
-        if(expression){
-            attributeValues = createAttributeValues(data);
-        }else{
-            attributeUpdates = createAttributeUpdates(data);
+        if(!expression){
+            expression = createUpdateExpression(item);
+            attributeValues = createAttributeValues(item);
+            attributeNames = createAttributeNames(item);
         }
 
         tableContext.context.docClient.update({
             Key: options.key,
-            AttributeUpdates: attributeUpdates,
             UpdateExpression: expression,
             ExpressionAttributeValues: attributeValues,
-            ExpressionAttributeNames: options.attributeNames,
+            ExpressionAttributeNames: attributeNames,
             ReturnValues: 'ALL_NEW',
             TableName: table.name
         }, done);

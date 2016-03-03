@@ -134,65 +134,97 @@ test('init alternator', function(t){
 
 });
 
-test('get document', function(t){
+test('create/get item', function(t){
     t.plan(3);
 
     createDb(function(error, db){
 
-        var newDocument = db.table('test').create({
-                id: createId(),
-                foo: 'bar'
+        var newItem = db.table('test').create({
+                item: {
+                    id: createId(),
+                    foo: 'bar'
+                }
             });
 
-        var retrievedDocument = db.table('test').get(newDocument.get('id'));
+        var retrievedItem = db.table('test').get(newItem.get('id'));
 
-        newDocument(function(error, document){
+        newItem(function(error, item){
             t.notOk(error);
         });
 
-        retrievedDocument(function(error, document){
+        retrievedItem(function(error, item){
             t.notOk(error);
 
-            t.equal(document.foo, 'bar');
+            t.equal(item.foo, 'bar');
         });
 
     });
 
 });
 
-test('remove document', function(t){
+test('create item with expression', function(t){
+    t.plan(3);
+
+    createDb(function(error, db){
+
+        var newItem = db.table('test').create({
+            item:{
+                    id: createId(),
+                    foo: 'bar'
+                }
+            });
+
+        var retrievedItem = db.table('test').get(newItem.get('id'));
+
+        newItem(function(error, item){
+            t.notOk(error);
+        });
+
+        retrievedItem(function(error, item){
+            t.notOk(error);
+
+            t.equal(item.foo, 'bar');
+        });
+
+    });
+
+});
+
+test('remove item', function(t){
     t.plan(6);
 
     createDb(function(error, db){
 
-        var newDocument = db.table('test').create({
-            id: createId(),
-            foo: 'bar'
+        var newItem = db.table('test').create({
+            item:{
+                id: createId(),
+                foo: 'bar'
+            }
         });
 
-        var retrievedDocument = db.table('test').get(newDocument.get('id'));
+        var retrievedItem = db.table('test').get(newItem.get('id'));
 
-        var removeDocument = db.table('test').remove(retrievedDocument.get('id'));
+        var removeItem = db.table('test').remove(retrievedItem.get('id'));
 
-        var retrievedDocumentAfterDelete = righto(db.table('test').get, retrievedDocument.get('id'), [removeDocument]);
+        var retrievedItemAfterDelete = righto(db.table('test').get, retrievedItem.get('id'), [removeItem]);
 
-        newDocument(function(error, document){
+        newItem(function(error, item){
             t.notOk(error);
         });
 
-        retrievedDocument(function(error, document){
+        retrievedItem(function(error, item){
             t.notOk(error);
 
-            t.equal(document.foo, 'bar');
+            t.equal(item.foo, 'bar');
         });
 
-        removeDocument(function(error, document){
+        removeItem(function(error, item){
             t.notOk(error);
         });
 
-        retrievedDocumentAfterDelete(function(error, document){
+        retrievedItemAfterDelete(function(error, item){
             t.ok(error);
-            t.notOk(document);
+            t.notOk(item);
         });
 
     });
@@ -200,39 +232,84 @@ test('remove document', function(t){
 
 });
 
-test('update document', function(t){
+test('update item', function(t){
     t.plan(7);
 
     createDb(function(error, db){
 
-        var newDocument = db.table('test').create({
-                id: createId(),
-                foo: 'bar'
+        var newItem = db.table('test').create({
+                item:{
+                    id: createId(),
+                    foo: 'bar'
+                }
             }),
-            testDocument = db.table('test').get(newDocument.get('id')),
-            updateDocument = db.table('test').update({
-                key: testDocument.get('id'),
-                data: {foo: 'baz'}
+            testItem = db.table('test').get(newItem.get('id')),
+            updateItem = db.table('test').update({
+                key: testItem.get('id'),
+                item: {foo: 'baz'}
             }),
-            updatedDocument = righto(db.table('test').get, testDocument.get('id'), [updateDocument]);
+            updatedItem = righto(db.table('test').get, testItem.get('id'), [updateItem]);
 
-        newDocument(function(error, document){
-            t.notOk(error, 'created document');
-            t.deepEqual(document, {id: document.id, foo: 'bar'});
+        newItem(function(error, item){
+            t.notOk(error, 'created item');
+            t.deepEqual(item, {id: item.id, foo: 'bar'});
         });
 
-        testDocument(function(error, document){
-            t.notOk(error, 'retrieved document');
-            t.deepEqual(document, {id: document.id, foo: 'bar'});
+        testItem(function(error, item){
+            t.notOk(error, 'retrieved item');
+            t.deepEqual(item, {id: item.id, foo: 'bar'});
         });
 
-        updateDocument(function(error){
-            t.notOk(error, 'updated document');
+        updateItem(function(error){
+            t.notOk(error, 'updated item');
         });
 
-        updatedDocument(function(error, document){
+        updatedItem(function(error, item){
             t.notOk(error, 'retrieve after update');
-            t.deepEqual(document, {id: document.id, foo: 'baz'});
+            t.deepEqual(item, {id: item.id, foo: 'baz'});
+        });
+
+    });
+});
+
+test('update item with expression', function(t){
+    t.plan(7);
+
+    createDb(function(error, db){
+
+        var newItem = db.table('test').create({
+                item:{
+                    id: createId(),
+                    version: 0
+                }
+            }),
+            testItem = db.table('test').get(newItem.get('id')),
+            updateItem = db.table('test').update({
+                key: testItem.get('id'),
+                expression: 'ADD version :x',
+                attributeValues: {
+                    ':x': 1
+                }
+            }),
+            updatedItem = righto(db.table('test').get, testItem.get('id'), [updateItem]);
+
+        newItem(function(error, item){
+            t.notOk(error, 'created item');
+            t.deepEqual(item, {id: item.id, version: 0});
+        });
+
+        testItem(function(error, item){
+            t.notOk(error, 'retrieved item');
+            t.deepEqual(item, {id: item.id, version: 0});
+        });
+
+        updateItem(function(error){
+            t.notOk(error, 'updated item');
+        });
+
+        updatedItem(function(error, item){
+            t.notOk(error, 'retrieve after update');
+            t.deepEqual(item, {id: item.id, version: 1});
         });
 
     });
@@ -255,33 +332,39 @@ test('findAll', function(t){
 
         var id = createId();
 
-        var newDocument1 = db.table('test').create({
-                id: id,
-                foo:'bar',
-                age: 10
+        var newItem1 = db.table('test').create({
+                item:{
+                    id: id,
+                    foo:'bar',
+                    age: 10
+                }
             }),
-            newDocument2 = db.table('test').create({
-                id: id,
-                foo:'baz',
-                age: 20
+            newItem2 = db.table('test').create({
+                item:{
+                    id: id,
+                    foo:'baz',
+                    age: 20
+                }
             }),
-            newDocument3 = db.table('test').create({
-                id: createId(),
-                foo:'baz',
-                age: 20
+            newItem3 = db.table('test').create({
+                item:{
+                    id: createId(),
+                    foo:'baz',
+                    age: 20
+                }
             }),
-            allDocuments = righto.all(newDocument1, newDocument2, newDocument3),
-            findDocuments = righto(db.table('test').findAll, {
+            allItems = righto.all(newItem1, newItem2, newItem3),
+            findItems = righto(db.table('test').findAll, {
                 expression: 'id = :id AND age > :min',
                 consistentRead: true,
                 attributeValues: {
                     ':id': id,
                     ':min': 15
                 }
-            }, [allDocuments]);
+            }, [allItems]);
 
-        findDocuments(function(error, result){
-            t.notOk(error, 'retrieve after update');
+        findItems(function(error, result){
+            t.notOk(error, 'no error');
 
             t.deepEqual(result.count, 1);
             t.deepEqual(result.rows.length, 1);
@@ -296,33 +379,37 @@ test('scan', function(t){
 
     createDb(function(error, db){
 
-        var newDocument1 = db.table('test').create({
-                id: createId(),
-                foo:'bar'
+        var newItem1 = db.table('test').create({
+                item: {
+                    id: createId(),
+                    foo:'bar'
+                }
             }),
-            newDocument2 = db.table('test').create({
-                id: createId(),
-                foo:'baz'
+            newItem2 = db.table('test').create({
+                item:{
+                    id: createId(),
+                    foo:'baz'
+                }
             }),
-            findDocuments = righto(db.table('test').scan, {
+            findItems = righto(db.table('test').scan, {
                 expression: 'foo = :foo',
                 consistentRead: true,
                 attributeValues: {
                     ':foo': 'bar'
                 }
-            }, [newDocument1], [newDocument2]);
+            }, [newItem1], [newItem2]);
 
-        var documents = righto.sync(function(document1, foundDocuments){
+        var items = righto.sync(function(item1, foundItems){
             return {
-                document1: document1,
-                foundDocuments: foundDocuments
+                item1: item1,
+                foundItems: foundItems
             };
-        }, newDocument1, findDocuments);
+        }, newItem1, findItems);
 
-        documents(function(error, result){
-            t.notOk(error, 'retrieve after update');
+        items(function(error, result){
+            t.notOk(error, 'no error');
 
-            t.deepEqual(result.foundDocuments.rows, [result.document1]);
+            t.deepEqual(result.foundItems.rows, [result.item1]);
         });
 
     });
@@ -330,7 +417,7 @@ test('scan', function(t){
 
 
 
-test.only('alternator hash + range', function(t){
+test('alternator hash + range', function(t){
     t.plan(4);
 
     var db = alternator(awsConnectionConfig, []);
@@ -353,20 +440,26 @@ test.only('alternator hash + range', function(t){
             }
         }, [deleteUsers]);
 
-        var newDocument1 = righto(db.table('users').create, {
-                name: name,
-                version: 1
+        var newItem1 = righto(db.table('users').create, {
+                item: {
+                    name: name,
+                    version: 1
+                }
             }, [createUsers]),
-            newDocument3 = righto(db.table('users').create, {
-                name: name,
-                version: 3
+            newItem3 = righto(db.table('users').create, {
+                item: {
+                    name: name,
+                    version: 3
+                }
             }, [createUsers]),
-            newDocument2 = righto(db.table('users').create, {
-                name: name,
-                version: 2
+            newItem2 = righto(db.table('users').create, {
+                item: {
+                    name: name,
+                    version: 2
+                }
             }, [createUsers]),
-            allDocuments = righto.all(newDocument1, newDocument2, newDocument3),
-            findDocuments = db.table('users').findAll({
+            allItems = righto.all(newItem1, newItem2, newItem3),
+            findItems = db.table('users').findAll({
                 expression: '#name = :name',
                 consistentRead: true,
                 limit: 1,
@@ -379,10 +472,10 @@ test.only('alternator hash + range', function(t){
                 }
             });
 
-        var found = righto(findDocuments, [allDocuments]);
+        var found = righto(findItems, [allItems]);
 
         found(function(error, result){
-            t.notOk(error, 'retrieve after update');
+            t.notOk(error, 'no error');
 
             t.equal(result.count, 1);
             t.equal(result.rows.length, 1);

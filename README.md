@@ -31,8 +31,12 @@ var db = alternator(
             {
                 name: 'users',
                 key: {
-                    hash: ['firstName', 'string'],
-                    range: ['age', 'number'] // Optional
+                    name: 'hash', // A hash is required
+                    version: 'range' // A range is optional
+                },
+                attributes: {
+                    name: 'string',
+                    version: 'number'
                 }
             }
         ]
@@ -40,8 +44,64 @@ var db = alternator(
     );
 
 // Create a user
-db.tables.users.create({
-    firstName:
-});
+db.table('users').create({
+    name: 'bob',
+    version: 0
+}, callback); // -> righto : item
+
+// Get a user
+db.table('users').get({
+    key: {
+        name: 'bob',
+        version: 0
+    }
+}, callback); // -> righto : item
+
+// Get multiple users by index
+db.table('users').findAll({
+    key: {
+        name: 'bob'
+    }
+}, callback); // -> righto : [item]
+
+// Search multiple users
+db.table('users').scan({
+    expression: 'foo = :foo',
+    attributeValues: {
+        ':foo': 'bar'
+    }
+}, callback); // -> righto : [item]
+
+// Update a user
+db.table('users').update({
+    key: {
+        name: 'bob',
+        version: 0
+    }
+    item: {
+        version: 1
+    }
+}, callback); // -> righto : item
+
+// Update a user with an expression
+db.table('users').update({
+    key: {
+        name: 'bob',
+        version: 0
+    }
+    expression: 'ADD version :one',
+    attributeValues: {
+        ':one': 1
+    }
+}, callback); // -> righto : item
+
+// Remove a user
+db.table('users').remove({
+    key: {
+        name: 'bob',
+        version: 0
+    }
+}, callback); // -> righto : nothing
+
 
 ```
