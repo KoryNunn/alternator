@@ -4,13 +4,11 @@ A simplified API to DynamoDB
 
 ## State - Experimental
 
-DynamoDB is hard to figure out and the state of the docs really doesn't help
-Use this module at your own risk.
+DynamoDB is hard to figure out and the state of the docs really doesn't help. Use this module at your own risk!
 
 ## Usage
 
-```
-
+```js
 var alternator = require('alternator');
 
 // create a db wrapper
@@ -102,6 +100,4 @@ db.table('users').remove({
         version: 0
     }
 }, callback); // -> righto : nothing
-
-
 ```
