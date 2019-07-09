@@ -5,6 +5,9 @@ var AWS = require('aws-sdk'),
     deepEqual = require('deep-equal'),
     errors = require('generic-errors');
 
+var PAY_PER_REQUEST = 'PAY_PER_REQUEST';
+var PROVISIONED = 'PROVISIONED';
+
 function resolve(value){
     return righto(function(value, done){
 
@@ -237,7 +240,7 @@ function remove(tableContext, options, callback){
 
     var result = righto(function(done){
         done(null);
-    }, [remove]);
+    }, righto.after(remove));
 
     callback && result(callback);
 
@@ -298,16 +301,24 @@ function createTable(context, definition, callback){
         });
 
     function createDbTable(config, done){
+        var billingMode = definition.billingMode || PAY_PER_REQUEST;
+        var provisionedThroughput = definition.provisionedThroughput || {
+                ReadCapacityUnits: 1,
+                WriteCapacityUnits: 1
+            };
 
-        var createdTable = context.dynamodb.createTable({
+        var tableSettings = {
             TableName : config.name,
             KeySchema: keySchema,
             AttributeDefinitions: attributeDefinitions,
-            ProvisionedThroughput: {
-                ReadCapacityUnits: 1e3,
-                WriteCapacityUnits: 1e3
-            }
-        }, done);
+            BillingMode: billingMode
+        };
+
+        if(billingMode === PROVISIONED){
+            tableSettings.ProvisionedThroughput = provisionedThroughput
+        }
+
+        var createdTable = context.dynamodb.createTable(tableSettings, done);
     }
 
     var createTable = righto(createDbTable, definition);
@@ -328,7 +339,7 @@ function deleteTable(context, name, callback){
 
     var removeTable = righto.sync(function(){
         removeLocalTable(context, name);
-    }, [deleteTable]);
+    }, righto.after(deleteTable));
 
     callback && removeTable(callback);
 
@@ -435,7 +446,7 @@ function syncTables(context, dbTables, tableConfigs){
                 table = createTable(context, config);
             }
 
-            context.tables[config.name] = righto.sync(createLocalTable, context, config, [table]);
+            context.tables[config.name] = righto.sync(createLocalTable, context, config, righto.after(table));
             return table;
 
         }));
@@ -456,14 +467,12 @@ function getTable(context, tableName){
         var localTable =
             context.tables[tableName] ||
             righto(function(done){
-                process.nextTick(function(){
-                    if(!context.tables[tableName]){
-                        return done(new Error('No table named ' + tableName + ' has been described'));
-                    }
+                if(!context.tables[tableName]){
+                    return done(new Error('No table named ' + tableName + ' has been described'));
+                }
 
-                    context.tables[tableName](done);
-                });
-            });
+                context.tables[tableName](done);
+            }, righto.after(context.tablesSynced));
 
         table[key] = shuv(tableMethods[key], {
             context: context,
@@ -480,24 +489,26 @@ function createDb(awsConfig, tableConfigs){
             dynamodb: new AWS.DynamoDB(awsConfig),
             docClient: new AWS.DynamoDB.DocumentClient(awsConfig),
             alternator: alternator,
-            tables: {}
+            tables: {},
         };
-
-    alternator.table = shuv(getTable, context);
-    alternator.createTable = shuv(createTable, context);
-    alternator.deleteTable = shuv(deleteTable, context);
-    alternator.listTables = shuv(listTables, context);
 
     var dbTableNames = listTables(context);
     var dbTables = righto.all(righto.sync(function(tableInfo, done){
             return tableInfo.map(shuv(describeTable, context, shuv._, shuv.$));
         }, dbTableNames));
 
-    var synced = syncTables(context, dbTables, tableConfigs);
-    alternator.ready = synced;
+    context.tablesSynced = syncTables(context, dbTables, tableConfigs)
+
+    alternator.table = shuv(getTable, context);
+    alternator.createTable = shuv(createTable, context);
+    alternator.deleteTable = shuv(deleteTable, context);
+    alternator.listTables = shuv(listTables, context);
+
+
+    alternator.ready = context.tablesSynced;
 
     // Immediatly sync
-    synced(function(error){
+    context.tablesSynced(function(error){
         if(error){
             throw error;
         }

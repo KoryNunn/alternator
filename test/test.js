@@ -16,7 +16,7 @@ module.exports = function(name, options, task){
 
             task(t, done);
 
-        }, [last]);
+        }, righto.after(last));
 
         last(noop);
     });

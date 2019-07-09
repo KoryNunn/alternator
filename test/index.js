@@ -16,7 +16,7 @@ function deleteTable(db, tableName){
             setTimeout(done, 50);
         });
 
-    var tableList = righto(db.listTables, [waitABit]);
+    var tableList = righto(db.listTables, righto.after(waitABit));
 
     return righto(function(tables, done){
         if(~tables.indexOf(tableName)){
@@ -45,7 +45,7 @@ function createDb(customTable, callback){
         attributes: {
             id:'string'
         }
-    }, [deleteTest]);
+    }, righto.after(deleteTest));
 
     createTest(function(error){
         if(error){
@@ -84,11 +84,11 @@ test('init alternator', function(t){
 
     var first = righto(function(done){
         createFirstConnection().ready(done);
-    }, [deleteTest]);
+    }, righto.after(deleteTest));
 
     var second = righto(function(done){
         createFirstConnection().ready(done);
-    }, [first]);
+    }, righto.after(first));
 
     var third = righto(function(done){
         alternator(awsConnectionConfig, [
@@ -104,7 +104,7 @@ test('init alternator', function(t){
                 }
             }
         ]).ready(done);
-    }, [second]);
+    }, righto.after(second));
 
     initialDb.ready(function(){
 
@@ -206,7 +206,7 @@ test('remove item', function(t){
 
         var removeItem = db.table('test').remove(retrievedItem.get('id'));
 
-        var retrievedItemAfterDelete = righto(db.table('test').get, retrievedItem.get('id'), [removeItem]);
+        var retrievedItemAfterDelete = righto(db.table('test').get, retrievedItem.get('id'), righto.after(removeItem));
 
         newItem(function(error, item){
             t.notOk(error);
@@ -248,7 +248,7 @@ test('update item', function(t){
                 key: testItem.get('id'),
                 item: {foo: 'baz'}
             }),
-            updatedItem = righto(db.table('test').get, testItem.get('id'), [updateItem]);
+            updatedItem = righto(db.table('test').get, testItem.get('id'), righto.after(updateItem));
 
         newItem(function(error, item){
             t.notOk(error, 'created item');
@@ -291,7 +291,7 @@ test('update item with expression', function(t){
                     ':x': 1
                 }
             }),
-            updatedItem = righto(db.table('test').get, testItem.get('id'), [updateItem]);
+            updatedItem = righto(db.table('test').get, testItem.get('id'), righto.after(updateItem));
 
         newItem(function(error, item){
             t.notOk(error, 'created item');
@@ -361,7 +361,7 @@ test('findAll', function(t){
                     ':id': id,
                     ':min': 15
                 }
-            }, [allItems]);
+            }, righto.after(allItems));
 
         findItems(function(error, result){
             t.notOk(error, 'no error');
@@ -397,7 +397,7 @@ test('scan', function(t){
                 attributeValues: {
                     ':foo': 'bar'
                 }
-            }, [newItem1], [newItem2]);
+            }, righto.after(newItem1, newItem2));
 
         var items = righto.sync(function(item1, foundItems){
             return {
@@ -438,28 +438,28 @@ test('alternator hash + range', function(t){
                 name: 'string',
                 version: 'number'
             }
-        }, [deleteUsers]);
+        }, righto.after(deleteUsers));
 
         var newItem1 = righto(db.table('users').create, {
                 item: {
                     name: name,
                     version: 1
                 }
-            }, [createUsers]),
+            }, righto.after(createUsers)),
             newItem3 = righto(db.table('users').create, {
                 item: {
                     name: name,
                     version: 3
                 }
-            }, [createUsers]),
+            }, righto.after(createUsers)),
             newItem2 = righto(db.table('users').create, {
                 item: {
                     name: name,
                     version: 2
                 }
-            }, [createUsers]),
+            }, righto.after(createUsers)),
             allItems = righto.all(newItem1, newItem2, newItem3),
-            findItems = db.table('users').findAll({
+            found = righto(db.table('users').findAll, {
                 expression: '#name = :name',
                 consistentRead: true,
                 limit: 1,
@@ -470,9 +470,7 @@ test('alternator hash + range', function(t){
                 attributeValues: {
                     ':name': name
                 }
-            });
-
-        var found = righto(findItems, [allItems]);
+            }, righto.after(allItems));
 
         found(function(error, result){
             t.notOk(error, 'no error');
