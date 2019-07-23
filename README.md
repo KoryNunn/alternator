@@ -43,8 +43,10 @@ var db = alternator(
 
 // Create a user
 db.table('users').create({
-    name: 'bob',
-    version: 0
+    item: {
+        name: 'bob',
+        version: 0
+    }
 }, callback); // -> righto : item
 
 // Get a user
