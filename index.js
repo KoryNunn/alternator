@@ -11,7 +11,11 @@ var PROVISIONED = 'PROVISIONED';
 function resolve(value){
     return righto(function(value, done){
 
-        if(value && (typeof value === 'object' || typeof value === 'function')){
+        if(
+            !Buffer.isBuffer(value) &&
+            value &&
+            (typeof value === 'object' || typeof value === 'function')
+        ){
             var results = {};
 
             righto.all(Object.keys(value).map(function(key){
@@ -191,7 +195,8 @@ function findAll(tableContext, options, callback) {
             ScanIndexForward: options.forward,
             ExpressionAttributeNames: options.attributeNames,
             ExpressionAttributeValues: options.attributeValues,
-            TableName: table.name
+            TableName: table.name,
+            IndexName: options.index
         }, done);
     }
 
@@ -291,14 +296,22 @@ function removeLocalTable(context, tableName){
     delete context.tables[tableName];
 }
 
+function createKeySchema(keyDefinition){
+    return Object.keys(keyDefinition).map(function(key){
+        return {AttributeName: key, KeyType: awsTypes[keyDefinition[key]]}
+    });
+}
+
+function createAttributeDefinitions(attributes){
+    return Object.keys(attributes).map(function(key){
+        return {AttributeName: key, AttributeType: awsTypes[attributes[key]]}
+    });
+}
+
 function createTable(context, definition, callback){
 
-    var keySchema = Object.keys(definition.key).map(function(key){
-            return {AttributeName: key, KeyType: awsTypes[definition.key[key]]}
-        }),
-        attributeDefinitions = Object.keys(definition.attributes).map(function(key){
-            return {AttributeName: key, AttributeType: awsTypes[definition.attributes[key]]}
-        });
+    var keySchema = createKeySchema(definition.key),
+        attributeDefinitions = createAttributeDefinitions(definition.attributes);
 
     function createDbTable(config, done){
         var billingMode = definition.billingMode || PAY_PER_REQUEST;
@@ -308,7 +321,7 @@ function createTable(context, definition, callback){
             };
 
         var tableSettings = {
-            TableName : config.name,
+            TableName: config.name,
             KeySchema: keySchema,
             AttributeDefinitions: attributeDefinitions,
             BillingMode: billingMode
@@ -323,7 +336,7 @@ function createTable(context, definition, callback){
 
     var createTable = righto(createDbTable, definition);
 
-    context.tables[definition.name] = righto.sync(createLocalTable, context, definition, [createTable]);
+    context.tables[definition.name] = righto.sync(createLocalTable, context, definition, righto.after(createTable));
 
     callback && createTable(callback);
 
@@ -379,6 +392,52 @@ function describeTable(context, tableName, callback){
     callback && table(callback);
 
     return table;
+}
+
+function createIndex(context, tableName, indexDefinition, callback){
+    var localTable = context.tables[tableName]
+
+    if(!localTable){
+        return done(new Error('No table named ' + tableName + ' has been described'));
+    }
+
+    var billingMode = localTable.get(tableDefinition => tableDefinition.billingMode || PAY_PER_REQUEST);
+    var provisionedThroughput = indexDefinition.provisionedThroughput || {
+            ReadCapacityUnits: 1,
+            WriteCapacityUnits: 1
+        };
+
+    var indexSettings = billingMode.get(billingMode => {
+        var settings = {
+            IndexName : indexDefinition.name,
+            KeySchema: createKeySchema(indexDefinition.key),
+            Projection: {
+                ProjectionType: indexDefinition.projection || 'ALL'
+            }
+        }
+
+        if(billingMode === PROVISIONED){
+            settings.ProvisionedThroughput = provisionedThroughput
+        }
+
+        return settings;
+    });
+
+    var updatedTable = righto((tableDefinition, settings, done) => {
+        context.dynamodb.updateTable({
+            TableName: tableName,
+            AttributeDefinitions: createAttributeDefinitions(tableDefinition.attributes),
+            GlobalSecondaryIndexUpdates: [
+                {
+                    Create: settings
+                }
+            ]
+        }, done);
+    }, localTable, indexSettings);
+
+    callback && updatedTable(callback);
+
+    return updatedTable;
 }
 
 function tableKeyToLocal(keySchema){
@@ -446,7 +505,11 @@ function syncTables(context, dbTables, tableConfigs){
                 table = createTable(context, config);
             }
 
-            context.tables[config.name] = righto.sync(createLocalTable, context, config, righto.after(table));
+            var indexes = config.indexes ? righto.all(config.indexes.map(indexDefinition =>
+                createIndex(config.name, indexDefinition)
+            )) : righto.from(null)
+
+            context.tables[config.name] = righto.sync(createLocalTable, context, config, righto.after(table), righto.after(indexes));
             return table;
 
         }));
@@ -501,6 +564,7 @@ function createDb(awsConfig, tableConfigs){
 
     alternator.table = shuv(getTable, context);
     alternator.createTable = shuv(createTable, context);
+    alternator.createIndex = shuv(createIndex, context);
     alternator.deleteTable = shuv(deleteTable, context);
     alternator.listTables = shuv(listTables, context);
 

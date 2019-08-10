@@ -373,7 +373,6 @@ test('findAll', function(t){
     });
 });
 
-
 test('scan', function(t){
     t.plan(2);
 
@@ -414,8 +413,6 @@ test('scan', function(t){
 
     });
 });
-
-
 
 test('alternator hash + range', function(t){
     t.plan(4);
@@ -478,6 +475,155 @@ test('alternator hash + range', function(t){
             t.equal(result.count, 1);
             t.equal(result.rows.length, 1);
             t.equal(result.rows[0].version, 3);
+        });
+
+    });
+
+});
+
+
+test('alternator hash + range + expression', function(t){
+    t.plan(4);
+
+    var db = alternator(awsConnectionConfig, []);
+
+    db.ready(function(error){
+
+        var name = 'bob';
+
+        var deleteUsers = deleteTable(db, 'users');
+
+        var createUsers = righto(db.createTable, {
+            name: 'users',
+            key: {
+                name: 'hash',
+                version: 'range'
+            },
+            attributes: {
+                name: 'string',
+                version: 'number'
+            }
+        }, righto.after(deleteUsers));
+
+        var newItem1 = righto(db.table('users').create, {
+                item: {
+                    name: name,
+                    version: 1
+                }
+            }, righto.after(createUsers)),
+            newItem3 = righto(db.table('users').create, {
+                item: {
+                    name: name,
+                    version: 3
+                }
+            }, righto.after(createUsers)),
+            newItem2 = righto(db.table('users').create, {
+                item: {
+                    name: name,
+                    version: 2
+                }
+            }, righto.after(createUsers)),
+            allItems = righto.all(newItem1, newItem2, newItem3),
+            found = righto(db.table('users').findAll, {
+                expression: '#name = :name AND #version BETWEEN :min AND :max',
+                consistentRead: true,
+                forward: false, // begin searching from the last index
+                attributeNames: {
+                    '#name': 'name',
+                    '#version': 'version'
+                },
+                attributeValues: {
+                    ':name': name,
+                    ':min': 2,
+                    ':max': 2
+                }
+            }, righto.after(allItems));
+
+        found(function(error, result){
+            t.notOk(error, 'no error');
+
+            t.equal(result.count, 1);
+            t.equal(result.rows.length, 1);
+            t.equal(result.rows[0].version, 2);
+        });
+
+    });
+
+});
+
+test.only('alternator GSI', function(t){
+    t.plan(4);
+
+    var db = alternator(awsConnectionConfig, []);
+
+    db.ready(function(error){
+
+        var name = 'bob';
+
+        var deleteUsers = deleteTable(db, 'items');
+
+        var createItemsTable = righto(db.createTable, {
+            name: 'items',
+            key: {
+                type: 'hash',
+                timestamp: 'range'
+            },
+            attributes: {
+                type: 'string',
+                timestamp: 'number'
+            }
+        }, righto.after(deleteUsers));
+
+        var createItemsIndex = righto(db.createIndex, 'items', {
+            name: "itemsByTimestamp",
+            key: {
+                type: 'hash',
+                timestamp: 'range'
+            },
+            projection:  'ALL'
+        }, righto.after(createItemsTable));
+
+        var newItem1 = righto(db.table('items').create, {
+                item: {
+                    type: 'foo',
+                    timestamp: 1
+                }
+            }, righto.after(createItemsIndex)),
+            newItem3 = righto(db.table('items').create, {
+                item: {
+                    type: 'foo',
+                    timestamp: 3
+                }
+            }, righto.after(createItemsIndex)),
+            newItem2 = righto(db.table('items').create, {
+                item: {
+                    type: 'foo',
+                    timestamp: 2
+                }
+            }, righto.after(createItemsIndex)),
+            allItems = righto.all(newItem1, newItem2, newItem3),
+            found = righto(db.table('items').findAll, {
+                expression: '#type = :type AND #timestamp BETWEEN :min AND :max',
+                consistentRead: true,
+                forward: false, // begin searching from the last index
+                index: "itemsByTimestamp",
+                attributeNames: {
+                    '#type': 'type',
+                    '#timestamp': 'timestamp'
+                },
+                attributeValues: {
+                    ':min': 2,
+                    ':max': 2,
+                    ':type': 'foo'
+                }
+            }, righto.after(allItems));
+
+        found(function(error, result){
+            t.notOk(error, 'no error');
+
+            t.equal(result.count, 1);
+            t.equal(result.rows.length, 1);
+            t.equal(result.rows[0].timestamp, 2);
         });
 
     });
