@@ -19,7 +19,7 @@
     "aws-sdk": "^2.2.39",
     "deep-equal": "^1.0.1",
     "generic-errors": "^2.0.1",
-    "merge": "^1.2.0",
+    "merge": "^2.1.1",
     "righto": "^5.1.0",
     "shuv": "^1.0.1"
   },
